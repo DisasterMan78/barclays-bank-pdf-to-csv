@@ -39,7 +39,7 @@ fs.readdir(pdfFolder, function(err, files) {
 function csvify(transactions) {
     var csvPieces = [];
     transactions.forEach(function(transaction) {
-        csvPieces.push(transaction.date+'\t'+transaction.description+'\t'+transaction.amount);
+        csvPieces.push(transaction.date+','+transaction.description+','+transaction.amount);
     });
     return csvPieces.join('\n');
 }
