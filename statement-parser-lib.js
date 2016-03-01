@@ -52,8 +52,17 @@
     currentTransactionDate = '';
 
     // get the statement year from the filename
-    var statementFileNameDelimiter = 'Statement_'; // e.g. Statement_20140807.pdf
-    statementYear = fileName.substr(fileName.lastIndexOf(statementFileNameDelimiter)+statementFileNameDelimiter.length,4);
+    if (fileName.indexOf('Statement ') === 0){
+        // New format
+        var res = /Statement\s[0-9]{2}\-[a-zA-z]{3}\-([0-9]{2})/.exec(fileName);
+        if (res && res.length === 2){
+            statementYear = '20' + res[1];
+        }
+    }
+    else {
+        var statementFileNameDelimiter = 'Statement_'; // e.g. Statement_20140807.pdf
+        statementYear = fileName.substr(fileName.lastIndexOf(statementFileNameDelimiter)+statementFileNameDelimiter.length,4);
+    }
 
     // Will be using promises to load document, pages and misc data instead of
     // callback.
@@ -135,7 +144,7 @@
             processStatement(text, pageNum);
             console.info('# Transactions analysed');
           }).then(function () {
-            console.info();
+            console.info('done here');
           });
         });
       };
@@ -172,7 +181,9 @@
     "Commission charges",
     "Standing order to",
     "Cash machine withdrawal",
-    "Cheque issued"
+    "Cheque issued",
+    "CHAPS transfer to",
+    "AFTS payment"
   ];
   var receipts = [
     "Direct credit from",
@@ -180,12 +191,14 @@
     "Internet Banking transfer from",
     "Deposit", // NB: not sure this is a generic reference
     "Refund from",
-    "Business Banking Loyalty Reward"
+    "Business Banking Loyalty Reward",
+    "Interest earned gross For the period"
   ];
 
   var transactionsStart = [
                             'Transactions in date order\\nDate\tDescription\tPayments\tReceipts\tBalance',//Old statement format
                             'Your Business Current Account',
+                            'Your Business Saver Account',
                             'Continued\\n'
                           ];
   /*
@@ -202,6 +215,7 @@
   var trailingBalanceMarker = '(?:[\\d,]+\\.\\d\\d)?'; // some transactions are followed by balances that can interfere a subsequent date e.g. 'Direct credit from G Kirschner Ref:-KirschnerBooking306.004,109.18' followed by '7 FebDebit card payment...'
   var transactionSeparator = new RegExp(optionalDateMarker+'(('+paymentsMarkers+'|'+receiptsMarkers+').+?)('+amountMarker+')'+trailingBalanceMarker,'gi');
   var totalsMarker = new RegExp('Total payments - incl\\.\\\\ncommission & interest('+amountMarker+').+?Total receipts('+amountMarker+')');
+  var startingBalanceMarker = new RegExp(optionalDateMarker+'Start Balance('+amountMarker+')');
   //console.info('transaction separator',transactionSeparator);
 
   function processStatement(text, pageNum) {
@@ -209,7 +223,7 @@
     // get totals if this is page 1
     if(pageNum===1) {
       var totals = text.match(totalsMarker);
-      if(totals) {
+      if(totals && totals.length === 3) {
         // convert strings such as '10,271.17' to 10271.17
         totalPaymentsFromStatement = -parseFloat(totals[1].replace(',','')).toFixed(2);
         totalReceiptsFromStatement = parseFloat(totals[2].replace(',','')).toFixed(2);
@@ -238,7 +252,7 @@
       return;
     }
     //newText = text.substring(startIndex+transactionsStart.length, endIndex);
-    text = text.substring(startIndex+transactionsStart.length);
+    text = text.substring(startIndex+transactionsStart.length).replace(/\\n/g, ' ');
 
     // extract transactions
     //console.info('**** check for argument we want ****');
@@ -247,7 +261,17 @@
       if(!matches) {
         throw new Error('no initial matches for '+text);
       }
-      //console.info(matches);
+      if (!currentTransactionDate){
+          console.info('finding starting balance');
+          var startBalanceMatches = startingBalanceMarker.exec(text);
+          if (startBalanceMatches && startBalanceMatches.length > 2){
+              transactionDate = startBalanceMatches[1];
+              transactionDate += ' '+statementYear;
+              currentTransactionDate = transactionDate;
+          }
+          //console.info(startBalanceMatches);
+      }
+      console.info(matches);
       var transactionDate = matches[1],
           paymentOrReceiptIndicator = matches[3],
           transactionAmount = parseFloat(matches[4].replace(',','')).toFixed(2),

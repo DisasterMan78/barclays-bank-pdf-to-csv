@@ -35,6 +35,13 @@
 		}
 
 	}
+    
+    function downloadCSV(csv, name) {
+        var link = document.createElement("a");
+        link.download = name;
+        link.href = 'data:text/csv;charset=utf-8;base64,' + btoa(unescape(encodeURIComponent(csv)));
+        link.click();
+    }
 
 	// output file information
 	function ParseFile(file) {
@@ -55,9 +62,13 @@
 
               parsePDFStatement(data, file.name, function(err, transactions) {
                   console.log('done - counted transactions, ',transactions.length);
+                  var csvArr = [];
                   transactions.forEach(function(transaction) {
                     Output(transaction.date+'\t'+transaction.description+'\t'+transaction.amount+'<br>');
+                    csvArr.push(transaction.date+',"'+transaction.description.replace(/"/g, '""')+'",'+transaction.amount);
                   });
+                  
+                  downloadCSV(csvArr.join('\n'), file.name.replace(/pdf/i, 'csv'));
               });
             };
             reader.readAsArrayBuffer(file);
